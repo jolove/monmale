@@ -1,0 +1,7 @@
+Sentinel
+Traceback (most recent call last):
+  File "/Users/jorgelozano/Monmalev1.0/monmale/sentinel.py", line 5, in <module>
+    time.sleep(300)
+KeyboardInterrupt
+Sentinel
+Sentinel
