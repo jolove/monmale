@@ -234,7 +234,9 @@ def applyClassification(dicClientsClassification,decodedDict):
             for j in dicClientsClassification[i].keys():
                 if dicClientsClassification[i][j] != decodedDict[j]:
                     equal=False
-                    log.info("    - Features client don't same that file (features type).")
+                    log.info("      <applyClassification> Features client don't same that file (features type). KEY="+str(j))
+                    log.debug("      <applyClassification> In DB   --> "+str(dicClientsClassification[i][j]))
+                    log.debug("      <applyClassification> In File --> "+str(decodedDict[j]))
         if equal:
             clientsID.append(i)
     if len(clientsID)>1:

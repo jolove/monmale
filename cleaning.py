@@ -195,7 +195,8 @@ def main():
                 dateFinal=datetime.now()
                 timeProcessing=dateFinal-dateInitial
                 log.info(procID+" - Time processing: "+str(timeProcessing.seconds)+" s")
-                client.insertNewDataSet(keyspace,dicHeader,L_union,dicL["L0"],dicAlarmsRegr,procID) 
+                # CHANGE: 04.09.14 --> client.insertNewDataSet(keyspace,dicHeader,L_union,dicL["L0"],dicAlarmsRegr,procID) 
+                client.insertNewDataSetCheck(keyspace,dicHeader,L_union,dicL["L0"],dicAlarmsRegr,procID) 
                 client.insertResult(keyspace,dicHeader,timeProcessing.seconds,score,procID)
                 if len(dicAlarmsRegr.keys()) >0:
                     # En este proceso sólo se puede dar un tipo de alarma que es la de valor incorrecto mediante REGRESIÓN
@@ -205,7 +206,8 @@ def main():
                     alarmed=[]
                     alarmed.append(1)
                     client.insertAlarmS(keyspace,dicHeader,dicAlarmReal,dicL["L0"],alarmed,procID)
-                usefulLibraryFiles.createJSONDataset(dicAlarmReal,dicHeader,dicL["L0"],L_union,pathF,lisAlarm,procID)
+                # CHANGE: 03.09.14 --> usefulLibraryFiles.createJSONDataset(dicAlarmReal,dicHeader,dicL["L0"],L_union,pathF,lisAlarm,procID)
+                usefulLibraryFiles.createJSONDatasetWithoutAlarm(dicAlarmReal,dicHeader,dicL["L0"],L_union,pathF,lisAlarm,procID)
                 usefulLibraryFiles.moveFile(pathI,pathB,newFile)
         else:
             log.info(procID+" - Applied variable filesWait, sleeping:"+str(dicDBvariables['filesWait'])+" s")

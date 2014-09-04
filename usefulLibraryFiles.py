@@ -134,11 +134,11 @@ def readNomFieldFile(path,newFile):
     txtFile.close()
     try:
         decodedField = nomFieldStr.strip().split("|")
-        log.info(decodedField)
+        log.info("<readNomFieldFile> "+str(decodedField))
         decodedValues = valuesLine.strip().split("|")
         # strip --> eliminar el retorno de carro y los posibles espacios
     except:
-        log.error("Text file in format error")
+        log.error("<readNomFieldFile> Text file in format error")
         return True,decodedField
     else:
         # Vamos a convertir las dós líneas en un diccionario cambiando los valores de los campos por el tipo apropiado
@@ -146,7 +146,7 @@ def readNomFieldFile(path,newFile):
         for i in range(len(decodedValues)):
             value,typ=usefulLibrary.convertString(decodedValues[i])
             decoded[decodedField[i]]=typ
-        log.info(decoded)
+        log.info("<readNomFieldFile> "+str(decoded))
         return False,decoded
 
 def readCVSfile(path,csvFile,procID):
@@ -218,6 +218,45 @@ def createJSONDataset(dicAlarmReal,dicHeader,dicL0,L_union,pathF,lisAlarm,procID
                 else:
                     interData['featureAlarmed']=str(interData['featureAlarmed'])+","+str(dicL0[dicAlarmReal[a]['y']])
                 log.debug(procID+" <createJSONDataset> Feature alarmed: "+str(dicL0[dicAlarmReal[a]['y']]))
+        for column in range(len(L_union[sample])):
+            interData[dicL0[column]]=L_union[sample][column]
+        jsonFile.write(str(json.dumps(interData,ensure_ascii=False,indent=7,sort_keys=True)).replace("\n","")+"\n")
+    jsonFile.close()
+    
+def createJSONDatasetWithoutAlarm(dicAlarmReal,dicHeader,dicL0,L_union,pathF,lisAlarm,procID):
+    # Formato de nuestro JSON
+    # {clientID:3,datasetID:b37acfbc-cb1c-4b80-9826-5c957e8ed9d1,timestamp:2014-08-23 12:53:59+0200,recentAlarm:False,currentAlarm:True,
+    # col0: value0,col1: value1,col2: value2, alarms: [col1,col2]}
+    # 1º. Creamos el diccionario con los valores.
+    # 2º. Lo pasamos a json.
+    # 3º. Lo pasamos a string
+    # 4º. Sustinuimos las \n por ""
+    # -- Ya tendríamos un string por muestra listo para insertar en archivo
+    # NEW: los ficheros json los crearemos en la carpeta de cada cliente
+    # NEW: 03.09.2014 - Creamos este procedimiento para generar los JSON de Dataset sin las alarmas, ya que estas las saca mas tarde el proceso
+    #                   MNR, y si no estaríamos duplicando
+    log.info(procID+" <createJSONDatasetWithoutAlarm> Creating JSON file ...")
+    datasetID=str(dicHeader["datasetID"])
+    clientID=dicHeader["clientID"]
+    if len(lisAlarm) > 0:
+        recentAlarm = True
+    else:
+        recentAlarm = False
+    jsonFile=open(pathF+'/'+str(clientID)+'/'+str(datasetID)+'_Dataset.json', 'w')
+    for sample in range(len(L_union)):
+        interData={}
+        timestamp=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        interData['clientID']=clientID
+        interData['datasetID']=datasetID
+        interData['timestamp']=timestamp
+        interData['recentAlarm']=recentAlarm
+        interData['recordn']=sample
+        #interData['featureAlarmed']=""
+        interData['currentAlarm']=False
+        interData['level']="none"
+        for a in dicAlarmReal.keys():
+            if (dicAlarmReal[a]['x'] == sample):
+                interData['currentAlarm']=True   
         for column in range(len(L_union[sample])):
             interData[dicL0[column]]=L_union[sample][column]
         jsonFile.write(str(json.dumps(interData,ensure_ascii=False,indent=7,sort_keys=True)).replace("\n","")+"\n")

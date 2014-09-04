@@ -322,6 +322,70 @@ class connectionCassandra:
             inserData,valuesList = usefulLibrary.createRecordDataset(procID,keyspace,dicL0,dicHeader,a,len(L_union),cont,row)
             self.executeDBinsert(inserData,valuesList)
             cont=cont+1
+
+    def enoughColumns(self,keyspace,columns,procID):
+        try:
+            query= "select column_name from system.schema_columns where columnfamily_name='dataset' ALLOW FILTERING;"
+            R=self.session.execute(query)
+        except:
+            log.error(procID+' <enoughColumns> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            log.info(procID+' <enoughColumns> Columns number query executed.')
+            log.debug(procID+' <enoughColumns> Number of records found in DB= '+str(len(R)))
+            if len(R) >= (columns+6): # Hay 6 columnas fijas
+                return True, 0, ""
+            else:
+                listCols=[]
+                for i in range(len(R)):
+                    log.debug(procID+' <enoughColumns> Record '+str(i))
+                    log.debug(procID+' <enoughColumns> ---------------')
+                    log.debug(R[i][0]) # column name 
+                    log.debug(procID+' <enoughColumns> ---------------')
+                    if "col" in str(R[i][0]):
+                        listCols.append(int(str(R[i][0]).split("col")[1]))
+                log.debug(sorted(listCols))
+                needCol=columns-len(listCols)
+                log.debug(procID+' <enoughColumns> Columns nedded: '+str(needCol))
+                return False, needCol, sorted(listCols)[len(listCols)-1]
+                
+    def createNewColDataset(self,keyspace,colName,procID):
+        alter= "ALTER TABLE "+keyspace+".dataset ADD "+str(colName)+" varchar;"
+        try:
+            R=self.session.execute(alter)
+        except:
+            log.error(procID+' <createNewColDataset> DB alter problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            log.info(procID+' <createNewColDataset> New column created '+str(colName))
+                
+    def insertNewDataSetCheck(self,keyspace,dicHeader,L_union,dicL0,dicAlarmsRegr,procID):
+        # Iremos recorriendo el array insertando cada valor (en la BD son siempre strings)
+        # usaremos el procedimiento antes definido executeDBinsert(self,sentence,valuesList)
+        # y la función usefulLibrary.createRecordHistory(procID,keyspace) que devuelve insertHist,valuesList,historyID
+        # El orden será:
+        #   1. createRecordHistory(procID,keyspace)
+        #   2. executeDBinsert(self,sentence,valuesList)
+        # NEW: 03.09.14 - Creamos este procedimiento como evolución del "insertNewDataSet", para que en el caso de que tengamos un número
+        #                 menor de columnas en la tabla creemos las correspondientes
+        enough, needCol,lastCol = self.enoughColumns(keyspace,len(L_union[0]),procID)
+        if enough == False:
+            cont=lastCol
+            for col in range(needCol):
+                cont=cont+1 
+                colName="col"+str(cont)
+                self.createNewColDataset(keyspace,colName,procID)
+        cont=0    
+        for row in L_union:
+            a=False
+            for alarm in dicAlarmsRegr.keys():
+                if cont == dicAlarmsRegr[alarm]["x"]: # existe una alarma en esta muestra
+                    a=True
+            inserData,valuesList = usefulLibrary.createRecordDataset(procID,keyspace,dicL0,dicHeader,a,len(L_union),cont,row)
+            self.executeDBinsert(inserData,valuesList)
+            cont=cont+1
    
     def insertResult(self,keyspace,dicHeader,timeProcessing,score,procID): 
         log.info(procID+" <insertResult> Creating sentence ....")
