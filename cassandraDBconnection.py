@@ -204,9 +204,9 @@ class connectionCassandra:
                 log.info(R[i][0]) # dataSetID 
                 log.info(procID+' ----------------')
             if len(R)>1:
-                # significa que hay mas de un dataset en el intervalo de tiempo con alarma, por lo que nos quedaos con el mas reciente
-                ind=R.keys().index((sorted(R.keys(),reverse=True)[0]))
-                lisAlarm.insert(0,R[ind][0])
+                # significa que hay mas de un dataset en el intervalo de tiempo con alarma, por lo que nos quedaos con uno
+                #ind=R.keys().index((sorted(R.keys(),reverse=True)[0]))
+                lisAlarm.insert(0,R[0][0])
                 log.info(procID+' DataSet return -> '+str(lisAlarm[0]))  
                 
             else:
@@ -584,7 +584,7 @@ class connectionCassandra:
             self.close()
             sys.exit(1)
         else:
-            log.debug(procID+' <searchAlarmsByDataSet> Exact alarm search queried executed.')
+            log.debug(procID+' <searchAlarmsByDataSet> Extract alarm search queried executed.')
             log.debug(procID+' <searchAlarmsByDataSet> Number of records found in DB= '+str(len(R))) # Como mucho será 1
             for index in range(len(R)):
                 log.debug(procID+' <searchAlarmsByDataSet> Record '+str(index))
@@ -609,3 +609,43 @@ class connectionCassandra:
             recordn=listAlarmsDB[i][0]
             inserData,valuesList = usefulLibrary.updateRecordDataset(keyspace,clientID,datasetID,recordn,procID)
             self.executeDBinsert(inserData,valuesList)
+    
+    def extractDatasetInformation(self,keyspace,clientID,datasetID,dicLspecial,procID):
+        col="col"
+        for index in range(len(dicLspecial['L0'])):
+            if col == "col":
+                col=str(col)+str(index)
+            else:
+                col=str(col)+",col"+str(index)
+        log.info(procID+' <extractDatasetInformation> Dinamic columns --> '+str(col))        
+        query= "SELECT recordn,date,numRecords,alarm,"+str(col)+" FROM "+keyspace+".dataset WHERE datasetID="+str(datasetID)+" AND clientID="+str(clientID)+";"
+        log.info(procID+' <extractDatasetInformation> '+str(query))
+        try:
+            R=self.session.execute(query)
+        except:
+            log.error(procID+' <extractDatasetInformation> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            lis=[]
+            log.debug(procID+' <extractDatasetInformation> Extract search queried executed.')
+            log.debug(procID+' <extractDatasetInformation> Number of records found in DB= '+str(len(R))) 
+            for index in range(len(R)):
+                subDic={}
+                log.debug(procID+' <extractDatasetInformation> Record '+str(index))
+                log.debug(procID+' <extractDatasetInformation> ---------------')
+                log.debug(R[index][0]) # recordn
+                subDic['recordn']=R[index][0]
+                log.debug(R[index][1]) # date
+                subDic['times']=R[index][1]
+                log.debug(R[index][2]) # numRecords
+                subDic['numRecords']=R[index][2]
+                log.debug(R[index][3]) # alarm
+                subDic['alarm']=R[index][3]
+                for i in range(len(dicLspecial['L0'])):
+                    log.debug(procID+' <extractDatasetInformation> Value: '+str(R[index][4+i]))
+                    log.debug(procID+' <extractDatasetInformation> Key: '+str(dicLspecial['L0'][i]))
+                    subDic[dicLspecial['L0'][i]]=R[index][4+i]
+                log.debug(procID+' <extractDatasetInformation> ---------------')
+                lis.append(subDic)
+            return lis

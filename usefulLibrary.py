@@ -483,7 +483,8 @@ def startAgent(nameCnfFile,dicDBvariables,client,procID):
 
 def applyOIFA(dicDBvariables,dicAgentProcess,clientsList,procID): 
     nameCnfFile=""
-    nameCnfFile = usefulLibraryFiles.createCnfAgentSFile(dicDBvariables,clientsList,procID)
+    # NEW --> 04.09.14 --> nameCnfFile = usefulLibraryFiles.createCnfAgentSFile(dicDBvariables,clientsList,procID)
+    nameCnfFile = usefulLibraryFiles.createCnfAgentSFilev2(dicDBvariables,clientsList,procID)
     proc = startAgent(nameCnfFile,dicDBvariables,"allClients",procID)
     dicAgentProcess[proc.pid]=proc
 
@@ -491,7 +492,8 @@ def applyOIFE(dicDBvariables,dicAgentProcess,clientsList,procID):
     # dicAgentProcess --> es un diccionario de objetos del tipo "subprocess"
     for client in clientsList:
         nameCnfFile=""
-        nameCnfFile = usefulLibraryFiles.createCnfAgentFile(dicDBvariables,client,procID)
+        # NEW --> 04.09.14 --> nameCnfFile = usefulLibraryFiles.createCnfAgentFile(dicDBvariables,client,procID)
+        nameCnfFile = usefulLibraryFiles.createCnfAgentFilev2(dicDBvariables,client,procID)
         proc = startAgent(nameCnfFile,dicDBvariables,client,procID)
         dicAgentProcess[proc.pid]=proc
         

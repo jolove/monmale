@@ -174,8 +174,17 @@ def main():
                 listAlarmsDB = client.searchAlarmsByDataSet(keyspace,clientID,datasetID,procID)    
                 # Actualizar la tabla DATASET con las alarmas.
                 client.updateDatasetWithAlarms(keyspace,clientID,datasetID,listAlarmsDB,procID)                    
-                usefulLibraryFiles.createJSONAlarms(datasetID,clientID,listAlarmsDB,pathF,procID)
-                log.info(procID+" <main> File Alarms JSON created.")
+                #OLD --> usefulLibraryFiles.createJSONAlarms(datasetID,clientID,listAlarmsDB,pathF,procID)
+                #
+                # NEW: 04.09.14 -- Se cambia la generación de los ficheros JSON, ya no tendremos dos diferentes: 
+                #                        * uno con el dataset generado por el proceso CLN
+                #                        * otro con las alarmas de cada dataset generaro por el MNR
+                #                  Ahora el proceso MNR creará un único fichero JSON en el que incluirá tanto el dataset como las alarmas asociadas a el 
+                #
+                lisInformationDB = []
+                lisInformationDB = client.extractDatasetInformation(keyspace,clientID,datasetID,dicLspecial,procID)
+                usefulLibraryFiles.createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,procID)
+                log.info(procID+" <main> File Alarms&Dataset JSON created.")
                 client.insertAnalysisInResult(keyspace,clientID,datasetID,procID)
                 log.info(procID+" <main> Dataset updated as analyzed.")
         else:

@@ -348,6 +348,59 @@ def createCnfAgentFile(dicDBvariables,client,procID):
     nameCnfFile=str(dicDBvariables['logstashAgentCnf'])+'/shipper_'+str(client)+'.cnf'
     return nameCnfFile
 
+def createCnfAgentFilev2(dicDBvariables,client,procID):
+    # NEW: 01.09.14: añadimos un fichero nuevo por cliente con los logs creador por el proceso MNR con las alarmas
+    # Formato:
+    # input {
+    # file {
+    #	    type => "clientID_DS"
+    #       path => ["/home/jorge/sar/clientID_DataSet.log"]
+    #       codec => "json"
+    #	  }
+    # file {
+    #	    type => "clientID_AL"
+    #       path => ["/home/jorge/sar/clientID_Alarms.log"]
+    #       codec => "json"
+    #	  }
+    # }
+    # output {
+    #    stdout { }
+    #    redis {
+    #        host => "192.168.56.101"
+    #        data_type => "list"
+    #        key => "logstash"
+    #    } 
+    # }
+    dicDBvariables['logstashAgentCnf']
+    dicDBvariables['commandAgentStart']
+    dicDBvariables['redisHost']
+    dicDBvariables['redisKey']
+    dicDBvariables['finalPath'] # Lo modificaremos y lo usaremos para los ficheros de los agentes
+    try:
+        cnfFile=open(str(dicDBvariables['logstashAgentCnf'])+'/shipper_'+str(client)+'.cnf', 'w')
+    except:
+        log.error(procID+" <createCnfAgentFilev2> Problem to create cnf file -->"+str(dicDBvariables['logstashAgentCnf'])+'/shipper_'+str(client)+'.cnf')
+    else:
+        log.info(procID+" <createCnfAgentFilev2> Creating cnf file -->"+str(dicDBvariables['logstashAgentCnf'])+'/shipper_'+str(client)+'.cnf')
+        cnfFile.write("input {\n")
+        cnfFile.write("    file {\n")
+        cnfFile.write("          type => \""+str(client)+"_DS\" \n")
+        cnfFile.write("          path => [\""+str(dicDBvariables['finalPath'])+"/"+str(client)+"_DataSet.log\"] \n")
+        cnfFile.write("          codec => \"json\" \n")
+        cnfFile.write("         }\n")     
+        cnfFile.write("      }\n")
+        cnfFile.write("output {\n")
+        cnfFile.write("    stdout { } \n")
+        cnfFile.write("    redis {\n")
+        cnfFile.write("          host => \""+str(dicDBvariables['redisHost'])+"\" \n")
+        cnfFile.write("          data_type => \"list\" \n")
+        cnfFile.write("          key => \""+str(dicDBvariables['redisKey'])+"\" \n")
+        cnfFile.write("         }\n")
+        cnfFile.write("      }\n")
+        cnfFile.close()
+    nameCnfFile=str(dicDBvariables['logstashAgentCnf'])+'/shipper_'+str(client)+'.cnf'
+    return nameCnfFile
+
 def createCnfAgentSFile(dicDBvariables,clientsList,procID):
     # NEW: 01.09.14: añadimos un fichero nuevo por cliente con los logs creador por el proceso MNR con las alarmas
     # Formato:
@@ -418,6 +471,72 @@ def createCnfAgentSFile(dicDBvariables,clientsList,procID):
     nameCnfFile=str(dicDBvariables['logstashAgentCnf'])+'/shipper_allClients.cnf'
     return nameCnfFile
 
+def createCnfAgentSFilev2(dicDBvariables,clientsList,procID):
+    # NEW: 01.09.14: añadimos un fichero nuevo por cliente con los logs creador por el proceso MNR con las alarmas
+    # Formato:
+    # input {
+    # file {
+    #	    type => "clientID_1_DS"
+    #       path => ["/home/jorge/sar/clientID_1_DataSet.log"]
+    #       codec => "json"
+    #	  }
+    # file {
+    #	    type => "clientID_1_AL"
+    #       path => ["/home/jorge/sar/clientID_1_Alarms.log"]
+    #       codec => "json"
+    #	  }
+    # file {
+    #	    type => "clientID_2_DS"
+    #       path => ["/home/jorge/sar/clientID_2_DataSet.log"]
+    #       codec => "json"
+    #	  }
+    # file {
+    #	    type => "clientID_2_AL"
+    #       path => ["/home/jorge/sar/clientID_2_Alarms.log"]
+    #       codec => "json"
+    #	  }
+    # }
+    # output {
+    #    stdout { }
+    #    redis {
+    #        host => "192.168.56.101"
+    #        data_type => "list"
+    #        key => "logstash"
+    #    } 
+    # }
+    dicDBvariables['logstashAgentCnf']
+    dicDBvariables['commandAgentStart']
+    dicDBvariables['redisHost']
+    dicDBvariables['redisKey']
+    dicDBvariables['finalPath'] # Lo modificaremos y lo usaremos para los ficheros de los agentes
+    try:
+        cnfFile=open(str(dicDBvariables['logstashAgentCnf'])+'/shipper_allClients.cnf', 'w')
+    except:
+        log.error(procID+" <createCnfAgentSFile> Problem to create cnf file -->"+str(dicDBvariables['logstashAgentCnf'])+'/shipper_allClients.cnf')
+    else:
+        log.info(procID+" <createCnfAgentSFile> Creating cnf file -->"+str(dicDBvariables['logstashAgentCnf'])+'/shipper_allClients.cnf')
+        cnfFile.write("input {\n")
+        for client in clientsList:
+            cnfFile.write("    file {\n")
+            cnfFile.write("          type => \""+str(client)+"_DS\" \n")
+            cnfFile.write("          path => [\""+str(dicDBvariables['finalPath'])+"/"+str(client)+"_DataSet.log\"] \n")
+            cnfFile.write("          codec => \"json\" \n")
+            cnfFile.write("         }\n")
+        # esta parte es compartida por todos
+        cnfFile.write("      }\n")
+        cnfFile.write("output {\n")
+        cnfFile.write("    stdout { } \n")
+        cnfFile.write("    redis {\n")
+        cnfFile.write("          host => \""+str(dicDBvariables['redisHost'])+"\" \n")
+        cnfFile.write("          data_type => \"list\" \n")
+        cnfFile.write("          key => \""+str(dicDBvariables['redisKey'])+"\" \n")
+        cnfFile.write("         }\n")
+        cnfFile.write("      }\n")
+        cnfFile.close()
+    nameCnfFile=str(dicDBvariables['logstashAgentCnf'])+'/shipper_allClients.cnf'
+    return nameCnfFile
+
+
 def checkAgentOUTfile(pathF,destFile,procID):
     try:
         os.access(pathF, os.F_OK)
@@ -478,3 +597,67 @@ def addNewJSONInFile(pathI,newFile,pathF,destFile,procID):
             else:
                 log.info(procID+ " <addNewDataSetInFile> Added lines to file: "+newFile+" --> "+str(destFile))
                 return False 
+
+def createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,procID):
+    # Formato de nuestro JSON
+    #  {
+    #    * clientID:3,
+    #    * datasetID:b37acfbc-cb1c-4b80-9826,
+    #    * recordn: 14,
+    #    * numRecords: 100,
+    #    * featureAlarmed: %idle,
+    #    * timestamp:2014-08-23 12:53:59+0200,
+    #    * alarmType:[1,2],
+    #    * level: LOW,
+    #    * externalRectification: True
+    #    * col0: asas,
+    #    * col1: asas,
+    #    * col2: asas
+    # }
+    jsonFile=open(pathF+'/'+str(clientID)+'/'+str(datasetID)+'_Dataset.json', 'w')
+    for index in range(len(lisInformationDB)):
+        dicDataset={}
+        dicDataset['datasetID']=str(datasetID)
+        dicDataset['clientID']=clientID
+        dicDataset['recordn']=lisInformationDB[index]['recordn']
+        dicDataset['featureAlarmed']="none"
+        dicDataset['alarmType']="none"
+        dicDataset['level']="none"
+        dicDataset['externalRectification']=False
+        for i in range(len(listAlarmsDB)): # Cuidado, un recordn puede tener mas de una alarma
+            if lisInformationDB[index]['recordn'] == listAlarmsDB[i][0]: # significa que la muestra tiene alarma 
+                if dicDataset['featureAlarmed'] == "none": #significa que es la primera característica alarmada encontrada
+                    dicDataset['featureAlarmed']=str(listAlarmsDB[i][1])
+                else:
+                    dicDataset['featureAlarmed']=str(dicDataset['featureAlarmed'])+","+str(listAlarmsDB[i][1])
+                kind=""
+                for k in range(len(listAlarmsDB[i][2])):
+                    if kind == "":
+                        kind=str(listAlarmsDB[i][2][k])
+                    else:
+                        kind=kind+","+str(listAlarmsDB[i][2][k])
+                if dicDataset['alarmType'] == "none":
+                    dicDataset['alarmType']=kind
+                else:
+                    if str(kind) not in str(dicDataset['alarmType']):
+                        dicDataset['alarmType']=str(dicDataset['alarmType'])+","+kind
+                if dicDataset['level'] == "none" or dicDataset['level'] == "LOW":
+                    dicDataset['level']=str(listAlarmsDB[i][4])
+                else:
+                    if dicDataset['level'] == "MEDIUM" and (str(listAlarmsDB[i][4]) == "HIGH" or str(listAlarmsDB[i][4]) == "CRITICAL"):
+                        dicDataset['level']=str(listAlarmsDB[i][4])
+                    elif dicDataset['level'] == "HIGH" and str(listAlarmsDB[i][4]) == "CRITICAL":
+                        dicDataset['level']=str(listAlarmsDB[i][4])
+                dicDataset['externalRectification']=listAlarmsDB[i][5]
+        date,hour = str(lisInformationDB[index]['times']).split(" ") 
+        log.debug(procID+" <createJSONAlarmsANDdataset> times: "+str(date)+" hour: "+str(hour))
+        # IN DB   --> 2014-09-01 16:37:45+0200
+        # in file --> 2014-08-28T18:01:48.000Z
+        dicDataset['timestamp']=str(date)+"T"+str(hour)+".000Z"
+        for j in lisInformationDB[index].keys():
+            if j != "times" and j != "recordn" and j != "alarm" and j != "numRecords":
+                v, t = usefulLibrary.convertString(lisInformationDB[index][j])
+                dicDataset[j]=v
+        log.debug(dicDataset)
+        jsonFile.write(str(json.dumps(dicDataset,ensure_ascii=False,indent=7,sort_keys=True)).replace("\n","")+"\n")
+    jsonFile.close()

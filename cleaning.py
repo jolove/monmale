@@ -207,7 +207,7 @@ def main():
                     alarmed.append(1)
                     client.insertAlarmS(keyspace,dicHeader,dicAlarmReal,dicL["L0"],alarmed,procID)
                 # CHANGE: 03.09.14 --> usefulLibraryFiles.createJSONDataset(dicAlarmReal,dicHeader,dicL["L0"],L_union,pathF,lisAlarm,procID)
-                usefulLibraryFiles.createJSONDatasetWithoutAlarm(dicAlarmReal,dicHeader,dicL["L0"],L_union,pathF,lisAlarm,procID)
+                # CHANGE: 04.09.14 --> usefulLibraryFiles.createJSONDatasetWithoutAlarm(dicAlarmReal,dicHeader,dicL["L0"],L_union,pathF,lisAlarm,procID)
                 usefulLibraryFiles.moveFile(pathI,pathB,newFile)
         else:
             log.info(procID+" - Applied variable filesWait, sleeping:"+str(dicDBvariables['filesWait'])+" s")
