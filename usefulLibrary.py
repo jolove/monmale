@@ -31,6 +31,18 @@ def updateRecordResult(keyspace,clientID,datasetID,procID):
     insert="INSERT INTO "+keyspace+".Result (datasetID,clientID,pending) VALUES (%s,%s,%s)"
     return insert,valuesList  
 
+def updateRecordAlarm(keyspace,clientID,datasetID,row,col,procID):
+    valuesList=[]
+    valuesList.insert(0,datasetID)
+    valuesList.insert(1,clientID)
+    valuesList.insert(2,row)
+    valuesList.insert(3,col)
+    valuesList.insert(4,True)
+    insert="INSERT INTO "+keyspace+".Alarm (datasetID,clientID,recordn,column,externalrectification) VALUES (%s,%s,%s,%s,%s)"
+    log.debug(procID+' <updateRecordAlarm> insert --> '+insert)
+    log.debug(procID+' <updateRecordAlarm> values --> '+str(valuesList))
+    return insert,valuesList           
+
 def updateRecordDataset(keyspace,clientID,datasetID,recordn,procID):
     valuesList=[]
     valuesList.insert(0,datasetID)
@@ -626,7 +638,8 @@ def searchColumnPosition(colName,dicL2special,procID):
     pos=0
     for col in sorted(dicL2special.keys()):
         if dicL2special[col] == colName:
-            return pos
+            log.debug(procID+" <searchColumnPosition> "+str(colName)+" = "+str(dicL2special[col])+" | column: "+str(col)+" | position: "+str(pos))
+            return col, pos
         else:
             pos=pos+1
 
@@ -641,42 +654,43 @@ def validateExternalKnow(L_predict,dicLspecial,dicAlarmsClusP,dicExternalKnow,di
     #            - Columnas no strings: L_predict,dicL2special,dicAlarmsClusP
     for extID in sorted(dicExternalKnow.keys()):
         if dicExternalKnow[extID]['column'] in dicLspecial['L2'].values(): # significa que la columna es una de las no strings
-            posL2 = searchColumnPosition(dicExternalKnow[extID]['column'],dicLspecial['L2'],procID)
-            if  posL2 in dicAlarmsClusP.keys(): # significa que la columna incluida en la BD de conocieminto externa, que tiene la posición posL2
+            numCol, posL2 = searchColumnPosition(dicExternalKnow[extID]['column'],dicLspecial['L2'],procID)
+            if  numCol in dicAlarmsClusP.keys(): # significa que la columna incluida en la BD de conocieminto externa, que tiene la posición posL2
                 #                                 dentro de nuestros arrays no strings existe en el diccionario de alarmas
-                log.debug(procID+" <validateExternalKnow> Column "+str(posL2))
-                colName=dicLspecial['L2'][posL2]
-                log.debug(procID+" <validateExternalKnow> Column name "+str(colName))
+                log.debug(procID+" <validateExternalKnow> Column "+str(numCol))
+                colName=dicLspecial['L2'][numCol]
+                log.debug(procID+" <validateExternalKnow> Column name by dicL "+str(colName))
+                log.debug(procID+" <validateExternalKnow> Column name by ExternlK "+str(dicExternalKnow[extID]['column']))
                 log.debug(procID+" <validateExternalKnow> Column name "+str(colName)+" has external knowedge.")
-                for row in sorted(dicAlarmsClusP[posL2].keys()):
+                for row in sorted(dicAlarmsClusP[numCol].keys()):
                     log.debug(procID+" <validateExternalKnow> Row "+str(row))
                     if dicExternalKnow[extID]['equal']:
-                        if dicExternalKnow[extID]['lower']:
+                        if dicExternalKnow[extID]['lower']: ### Cuidado por si al comparar son tipos de datos diferetes
                             if L_predict[row][posL2] <= dicExternalKnow[extID]['value']:
-                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,posL2,row,procID)
-                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(posL2)+" ROW: "+str(row))
+                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,numCol,row,procID)
+                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(numCol)+" ROW: "+str(row))
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" <= to external value: "+str(dicExternalKnow[extID]['value']))
                             else:
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" > to external value: "+str(dicExternalKnow[extID]['value'])+", alarm doesn't removed.")
                         else:
                             if L_predict[row][posL2] >= dicExternalKnow[extID]['value']:
-                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,posL2,row,procID)
-                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(posL2)+" ROW: "+str(row))
+                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,numCol,row,procID)
+                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(numCol)+" ROW: "+str(row))
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" >= to external value: "+str(dicExternalKnow[extID]['value']))
                             else:
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" < to external value: "+str(dicExternalKnow[extID]['value'])+", alarm doesn't removed.")
                     else:
                         if dicExternalKnow[extID]['lower']:
                             if L_predict[row][posL2] < dicExternalKnow[extID]['value']:
-                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,posL2,row,procID)
-                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(posL2)+" ROW: "+str(row))
+                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,numCol,row,procID)
+                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(numCol)+" ROW: "+str(row))
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" < to external value: "+str(dicExternalKnow[extID]['value']))
                             else:
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" > to external value: "+str(dicExternalKnow[extID]['value'])+", alarm doesn't removed.")
                         else:
                             if L_predict[row][posL2] > dicExternalKnow[extID]['value']:
-                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,posL2,row,procID)
-                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(posL2)+" ROW: "+str(row))
+                                removeAlarm(dicAlarmsClusP,dicAlarmsClusPRec,numCol,row,procID)
+                                log.debug(procID+" <validateExternalKnow> Alarm removed --> COL: "+str(numCol)+" ROW: "+str(row))
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" > to external value: "+str(dicExternalKnow[extID]['value']))
                             else:
                                 log.debug(procID+" <validateExternalKnow> Real value: "+str(L_predict[row][posL2])+" < to external value: "+str(dicExternalKnow[extID]['value'])+", alarm doesn't removed.")
@@ -685,4 +699,30 @@ def validateExternalKnow(L_predict,dicLspecial,dicAlarmsClusP,dicExternalKnow,di
     log.debug(dicAlarmsClusP) 
     log.debug(dicAlarmsClusPRec)
 
-# -- CLASES
+def convertListToDicAlarm(lisInformationDB,listAlarmsDB,dicAlarmsLinealRegresion,dicLspecial,procID):
+    # ----Formato del listAlarmsDB:
+    # R[index][0] # recordn
+    # R[index][1] # column
+    # R[index][2] # alarmed --> es una lista 
+    # R[index][3] # date 
+    # R[index][4] # level  
+    # R[index][5] # externalRectification
+    # ----Formato del lisInformationDB:
+    # subDic['recordn']
+    # subDic['times']
+    # subDic['numRecords']
+    # subDic['alarm']
+    for index in range(len(listAlarmsDB)):
+        for j in range(len(lisInformationDB)):
+            if listAlarmsDB[index][0] == lisInformationDB[j]['recordn']: #significa que el registro número X tiene una alarma
+                log.debug(procID+" <convertListToDicAlarm> Exists alarm in record num: "+str(listAlarmsDB[index][0]))
+                col, posL2 = searchColumnPosition(listAlarmsDB[index][1],dicLspecial['L2'],procID)
+                if col in dicAlarmsLinealRegresion.keys(): # significa que la columna ya existe en el diccionario
+                    log.debug(procID+" <convertListToDicAlarm> The column exists in dic: "+str(col))
+                    dicAlarmsLinealRegresion[col][lisInformationDB[j]['recordn']]=listAlarmsDB[index][4]
+                else:
+                    log.debug(procID+" <convertListToDicAlarm> The column doesn't exist in dic: "+str(col))
+                    subDic={}
+                    subDic[lisInformationDB[j]['recordn']]=listAlarmsDB[index][4]  
+                    dicAlarmsLinealRegresion[col]=subDic                  
+        

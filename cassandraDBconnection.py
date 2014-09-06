@@ -610,6 +610,13 @@ class connectionCassandra:
             inserData,valuesList = usefulLibrary.updateRecordDataset(keyspace,clientID,datasetID,recordn,procID)
             self.executeDBinsert(inserData,valuesList)
     
+    def updateAlarm(self,keyspace,clientID,datasetID,dicAlarmsLRePRec,dicL2special,procID):
+        for key in dicAlarmsLRePRec.keys():
+            col=dicL2special[dicAlarmsLRePRec[key]['column']]
+            row=dicAlarmsLRePRec[key]['row']
+            inserData,valuesList = usefulLibrary.updateRecordAlarm(keyspace,clientID,datasetID,row,col,procID)
+            self.executeDBinsert(inserData,valuesList)
+            
     def extractDatasetInformation(self,keyspace,clientID,datasetID,dicLspecial,procID):
         col="col"
         for index in range(len(dicLspecial['L0'])):

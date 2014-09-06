@@ -144,6 +144,22 @@ def main():
                 #   - L_train    --> array que usaremos como train y test
                 # por lo que ya podemos aplicar los algoritmos de ML.
                 #
+                # Tenemos que realizar la validación contra la BD de conocimiento externo para las alarmas de la Regresión Lineal
+                # ---- NEW : 05.09.14
+                lisInformationDB = []
+                lisInformationDB = client.extractDatasetInformation(keyspace,clientID,datasetID,dicLspecial,procID) 
+                listAlarmsDB = []
+                listAlarmsDB = client.searchAlarmsByDataSet(keyspace,clientID,datasetID,procID) 
+                dicAlarmsLinealRegresion={}
+                usefulLibrary.convertListToDicAlarm(lisInformationDB,listAlarmsDB,dicAlarmsLinealRegresion,dicLspecial,procID)  
+                dicExternalKnow={}
+                if len(dicAlarmsLinealRegresion.keys()) > 0:
+                    client.searchExternalKnow(keyspace,dicExternalKnow,clientID,procID)
+                    if len(dicExternalKnow.keys()) > 0:
+                        dicAlarmsLRePRec={}
+                        usefulLibrary.validateExternalKnow(L_predict,dicLspecial,dicAlarmsLinealRegresion,dicExternalKnow,dicAlarmsLRePRec,procID)
+                        client.updateAlarm(keyspace,clientID,datasetID,dicAlarmsLRePRec,dicLspecial['L2'],procID)
+                # ---- NEW : 05.09.14
                 dicAlarmsClusT={}
                 dicAlarmsClusP={}
                 score=0
@@ -155,13 +171,12 @@ def main():
                 else:
                     machineLearningLibrary.applyClusteringTotal(L_predict,features,L_train,dicDBvariables,dicAlarmsClusT,score,procID)
                     machineLearningLibrary.applyClusteringPartial(L_predict,features,L_train,dicDBvariables,dicAlarmsClusP,score,procID)
-                    # dicAlarmsClusP es un diccionario por columna, es decir contiene X subdiccionarios del tipo dicAlarmsClusT (X=num columnas)
+                    # dicAlarmsClusP es un diccionario por columna, es decir contiene X subdiccionarios del tipo dicAlarmsClusT (X=num columnas)                
                     if len(dicAlarmsClusT.keys()) > 0 or len(dicAlarmsClusP.keys()) > 0: # Hay alarmas
                         log.info(procID+" <main> There are new alarms.")
-                        dicExternalKnow={}
                         dicAlarmsClusPRec={} # diccionario con las alarmas rectificadas por el conocimiento externo
                         if len(dicAlarmsClusP.keys()) > 0: # Solo en el caso de el CLustering parcial (por columna) se usará la BD de conocimiento externo
-                            client.searchExternalKnow(keyspace,dicExternalKnow,clientID,procID)
+                            # NEW --> 05.09.14 -- > ya lo hemos ejecutado antes --> client.searchExternalKnow(keyspace,dicExternalKnow,clientID,procID)
                             if len(dicExternalKnow.keys()) > 0:
                                 usefulLibrary.validateExternalKnow(L_predict,dicLspecial,dicAlarmsClusP,dicExternalKnow,dicAlarmsClusPRec,procID) 
                             else:
@@ -169,10 +184,9 @@ def main():
                             client.insertAlarmsClusCol(keyspace,clientID,datasetID,dicAlarmsClusP,dicAlarmsClusPRec,dicLspecial['L2'],procID)
                         client.insertAlarmsClusRow(keyspace,clientID,datasetID,dicAlarmsClusT,dicLspecial['L2'],procID)
                     else:
-                        log.info(procID+" <main> There are not new alarms.")
-                listAlarmsDB = []
-                listAlarmsDB = client.searchAlarmsByDataSet(keyspace,clientID,datasetID,procID)    
+                        log.info(procID+" <main> There are not new alarms.")   
                 # Actualizar la tabla DATASET con las alarmas.
+                listAlarmsDB = client.searchAlarmsByDataSet(keyspace,clientID,datasetID,procID) 
                 client.updateDatasetWithAlarms(keyspace,clientID,datasetID,listAlarmsDB,procID)                    
                 #OLD --> usefulLibraryFiles.createJSONAlarms(datasetID,clientID,listAlarmsDB,pathF,procID)
                 #
@@ -180,9 +194,9 @@ def main():
                 #                        * uno con el dataset generado por el proceso CLN
                 #                        * otro con las alarmas de cada dataset generaro por el MNR
                 #                  Ahora el proceso MNR creará un único fichero JSON en el que incluirá tanto el dataset como las alarmas asociadas a el 
-                #
-                lisInformationDB = []
-                lisInformationDB = client.extractDatasetInformation(keyspace,clientID,datasetID,dicLspecial,procID)
+                # 
+                # Generamos los ficheros
+                lisInformationDB = client.extractDatasetInformation(keyspace,clientID,datasetID,dicLspecial,procID) 
                 usefulLibraryFiles.createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,procID)
                 log.info(procID+" <main> File Alarms&Dataset JSON created.")
                 client.insertAnalysisInResult(keyspace,clientID,datasetID,procID)
