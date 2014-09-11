@@ -166,6 +166,10 @@ def main():
                             #    - Copiado  --> a la ruta de salida
                             newDataSetID=usefulLibrary.createUUID()
                             extension=usefulLibrary.extensionDate()
+                            # NEW: 09.09.14
+                            newFinalPath = client.searchMLFinalpathForClient(keyspace,clientID,procID)
+                            log.info(procID+" <main> search new final path for clientTrack -->"+str(newFinalPath))
+                            # -----
                             E,fileWithExt=usefulLibraryFiles.createCopyFile(pathI,newFile,extension)
                             if E:
                                 # Ha habido algún error al crear el nuevo fichero
@@ -178,7 +182,7 @@ def main():
                                     if usefulLibraryFiles.moveFile(pathI,pathB,newFile)==True:
                                         # ha habido un error
                                         sys.exit(1)
-                                    if usefulLibraryFiles.moveFile(pathI,pathF,fileWithExt)==True:
+                                    if usefulLibraryFiles.moveFile(pathI,newFinalPath,fileWithExt)==True:
                                         # ha habido un error
                                         sys.exit(1)
                         else:

@@ -598,7 +598,7 @@ def addNewJSONInFile(pathI,newFile,pathF,destFile,procID):
                 log.info(procID+ " <addNewDataSetInFile> Added lines to file: "+newFile+" --> "+str(destFile))
                 return False 
 
-def createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,procID):
+def createJSONAlarmsANDdatasetv2(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,analysis,procID):
     # Formato de nuestro JSON
     #  {
     #    * clientID:3,
@@ -612,7 +612,8 @@ def createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformat
     #    * externalRectification: True
     #    * col0: asas,
     #    * col1: asas,
-    #    * col2: asas
+    #    * col2: asas,
+    #    * analysis: True
     # }
     jsonFile=open(pathF+'/'+str(clientID)+'/'+str(datasetID)+'_Dataset.json', 'w')
     for index in range(len(lisInformationDB)):
@@ -624,6 +625,85 @@ def createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformat
         dicDataset['alarmType']="none"
         dicDataset['level']="none"
         dicDataset['externalRectification']=False
+        dicDataset['analysis']=analysis
+        lisFeatures = []
+        lisType = []
+        for i in range(len(listAlarmsDB)): # Cuidado, un recordn puede tener mas de una alarma
+            if lisInformationDB[index]['recordn'] == listAlarmsDB[i][0]: # significa que la muestra tiene alarma 
+                if str(listAlarmsDB[i][1]) not in lisFeatures:
+                    lisFeatures.append(str(listAlarmsDB[i][1]))
+                for k in range(len(listAlarmsDB[i][2])):
+                    if str(listAlarmsDB[i][2][k]) not in lisType:
+                        lisType.append(str(listAlarmsDB[i][2][k]))
+                if dicDataset['level'] == "none" or dicDataset['level'] == "LOW":
+                    dicDataset['level']=str(listAlarmsDB[i][4])
+                else:
+                    if dicDataset['level'] == "MEDIUM" and (str(listAlarmsDB[i][4]) == "HIGH" or str(listAlarmsDB[i][4]) == "CRITICAL"):
+                        dicDataset['level']=str(listAlarmsDB[i][4])
+                    elif dicDataset['level'] == "HIGH" and str(listAlarmsDB[i][4]) == "CRITICAL":
+                        dicDataset['level']=str(listAlarmsDB[i][4])
+                dicDataset['externalRectification']=listAlarmsDB[i][5]
+        allElem=""
+        for fea in sorted(lisFeatures):
+            if allElem == "":
+                allElem=fea
+            else:
+                allElem=str(allElem)+","+str(fea)
+        if allElem == "":
+            dicDataset['featureAlarmed']="none"
+        else:
+            dicDataset['featureAlarmed']=str(allElem)
+        allElem=""
+        for typ in sorted(lisType):
+            if allElem == "":
+                allElem=typ
+            else:
+                allElem=str(allElem)+","+str(typ)
+        if allElem == "":
+            dicDataset['alarmType']="none"
+        else:
+            dicDataset['alarmType']=str(allElem)        
+        date,hour = str(lisInformationDB[index]['times']).split(" ") 
+        log.debug(procID+" <createJSONAlarmsANDdataset> times: "+str(date)+" hour: "+str(hour))
+        # IN DB   --> 2014-09-01 16:37:45+0200
+        # in file --> 2014-08-28T18:01:48.000Z
+        dicDataset['timestamp']=str(date)+"T"+str(hour)+".000Z"
+        for j in lisInformationDB[index].keys():
+            if j != "times" and j != "recordn" and j != "alarm" and j != "numRecords":
+                v, t = usefulLibrary.convertString(lisInformationDB[index][j])
+                dicDataset[j]=v
+        log.debug(dicDataset)
+        jsonFile.write(str(json.dumps(dicDataset,ensure_ascii=False,indent=7,sort_keys=True)).replace("\n","")+"\n")
+    jsonFile.close()
+
+def createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,analysis,procID):
+    # Formato de nuestro JSON
+    #  {
+    #    * clientID:3,
+    #    * datasetID:b37acfbc-cb1c-4b80-9826,
+    #    * recordn: 14,
+    #    * numRecords: 100,
+    #    * featureAlarmed: %idle,
+    #    * timestamp:2014-08-23 12:53:59+0200,
+    #    * alarmType:[1,2],
+    #    * level: LOW,
+    #    * externalRectification: True
+    #    * col0: asas,
+    #    * col1: asas,
+    #    * col2: asas,
+    #    * analysis: True
+    # }
+    jsonFile=open(pathF+'/'+str(clientID)+'/'+str(datasetID)+'_Dataset.json', 'w')
+    for index in range(len(lisInformationDB)):
+        dicDataset={}
+        dicDataset['datasetID']=str(datasetID)
+        dicDataset['clientID']=clientID
+        dicDataset['recordn']=lisInformationDB[index]['recordn']
+        dicDataset['featureAlarmed']="none"
+        dicDataset['alarmType']="none"
+        dicDataset['level']="none"
+        dicDataset['externalRectification']=False
+        dicDataset['analysis']=analysis
         for i in range(len(listAlarmsDB)): # Cuidado, un recordn puede tener mas de una alarma
             if lisInformationDB[index]['recordn'] == listAlarmsDB[i][0]: # significa que la muestra tiene alarma 
                 if dicDataset['featureAlarmed'] == "none": #significa que es la primera característica alarmada encontrada

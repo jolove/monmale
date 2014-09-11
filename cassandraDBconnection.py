@@ -190,7 +190,7 @@ class connectionCassandra:
         log.info(procID+" -select datasetid from "+keyspace+".Alarm where clientid="+str(clientID)+" and date >= '"+initiDate+"' and date <= '"+finalDate+"' ALLOW FILTERING;")
         try:
             query= "select datasetid from "+keyspace+".Alarm where clientid="+str(clientID)+" and date >= '"+initiDate+"' and date <= '"+finalDate+"' ALLOW FILTERING;"
-            R=self.session.execute(query)
+            R=self.session.execute(query,timeout=100.0)
         except:
             log.error(procID+' - DB query problem¡¡.')
             self.close()
@@ -230,18 +230,23 @@ class connectionCassandra:
         # CHANGE: 30.08.14 - Le añadimos un parámetro mas boolean para:
         #                    1.- Si es True sacará también las muestras alarmadas.
         #                    2.- Si es False no sacará las muestras alarmadas.
+        # CHANGE: 06.09.14 - Cambiamos la primera query, le añadimos recordN=0 en el WHERE, ya que así nos evitamos traernos tantos 
+        #                    registros de la BD y por lo tanto el recorrerlos mas tarde.
+        # CHANGE: 10.09.14 - El cambio anterior era incompleto, lo solucionamos y quitamos el tema del minTrainDataSet y del maxTrainDataSet
+        #                    ya que este valor lo marca ahora cuantos dataset hay y el tamaño del dataset actual
+        #                    
         include=True
         if dataUUID == "":
-            query="select datasetID,numRecords from monmale.DataSet WHERE clientID="+str(clientID)+";"
+            query="select datasetID,numRecords from monmale.DataSet WHERE clientID="+str(clientID)+" and recordN=0;"
         else:
             if only:
-                query="select datasetID,numRecords from monmale.DataSet WHERE clientID="+str(clientID)+" AND datasetID="+str(dataUUID)+" ;"
+                query="select datasetID,numRecords from monmale.DataSet WHERE clientID="+str(clientID)+" AND datasetID="+str(dataUUID)+" and recordN=0 ;"
             else:
-                query="select datasetID,numRecords from monmale.DataSet WHERE clientID="+str(clientID)+";"
+                query="select datasetID,numRecords from monmale.DataSet WHERE clientID="+str(clientID)+" and recordN=0;"
                 include=False
         log.info(procID+" - "+query)
         try:
-            J=self.session.execute(query)
+            J=self.session.execute(query,timeout=100.0)
             log.info(procID+' <loadTrainDataSet> Extraction train dataset queried executed step1.')
         except:
             log.error(procID+' <loadTrainDataSet> DB query problem¡¡.')
@@ -249,61 +254,139 @@ class connectionCassandra:
             sys.exit(1)
         else: 
             records=len(J)
-            log.info(procID+' <loadTrainDataSet> DB records= '+str(records))
-            log.info(procID+' <loadTrainDataSet> minTrainDataSet= '+str(minTrainDataSet))
-            if records == 0 or records<int(minTrainDataSet):  # si no hay dataset para el cliente o no llega al mínimo
-                # devolvemos la lista vacia, es el caso en el que sea nuevo
-                log.info(procID+' <loadTrainDataSet> There are not data sets in DB.')
-                del L_train[:]
+            log.info(procID+' <loadTrainDataSet> Number of records recovered of DB: '+str(records))
+            dicData={}
+            for row in range(records):
+                if J[row][0] not in dicData.keys():
+                    log.info(procID+" - "+str(J[row][0])+" --> "+str(J[row][1]))
+                    dicData[J[row][0]]=J[row][1]
+            log.info(procID+" <loadTrainDataSet> Number of full DataSet to recover in DB:"+str(records))
+            cad=''
+            for i in features_train:
+                if (cad == ''):
+                    cad=i
+                else:
+                    cad=cad+','+i
+            log.info(procID+' <loadTrainDataSet> DataUUID '+str(dataUUID))
+            if include == False:
+                if dataUUID in dicData.keys(): # Ya que como tenemos un máximo de líneas en el dataset puede que no se haya cargado
+                    del dicData[dataUUID]
+                log.info(procID+" <loadTrainDataSet> DatasetUUD "+str(dataUUID)+" deleted because it is excluded.")
+            for dataset in dicData.keys():
+                query= "SELECT recordN,alarm,"+cad+" FROM "+keyspace+".DataSet WHERE datasetID="+str(dataset)+" ORDER BY recordN;"
+                log.info(procID+" - "+query)
+                try:
+                    # No sacaremos las muestras alarmadas ya que estas presentan anomalías y queremos el set de entrenamiendo lo mas limpio posible,
+                    # para aplicar el algoritmo de clustering en el proceso MNR si cargaremos todos.
+                    # aunque sacamos las columnas datasetID,recordN,alarm en la query, a la hora de crear el array las quitaremos
+                    #
+                    R=self.session.execute(query)
+                    log.info(procID+' - Extraction train dataset queried executed step2')
+                except:
+                    log.error(procID+' - DB query problem¡¡.')
+                    self.close()
+                    sys.exit(1)
+                else:
+                    rec=len(R)
+                    log.info(procID+' - Number of records recovered of DB: '+str(rec))
+                    for row in range(rec):
+                        log.info(procID+" - Row:"+str(row))
+                        sublis=[]
+                        if R[row][1] == False or alar == True: # Si alar es True sacamos las muestras alarmadas
+                            for col in range(len(features_train)): # cuidado que tenemos que quitar las 2 primeras
+                                log.info(procID+" - "+str(features_train[col])+" --> "+str(R[row][col+2]))
+                                v, t = usefulLibrary.convertString(R[row][col+2])
+                                sublis.append(v)
+                            L_train.append(sublis)
+                        else:
+                            log.info(procID+" - "+str(row)+" does not load, it is alarmed.")
+                log.info(procID+' - Number of samples recovered: '+str(len(L_train)))
+
+    def loadTrainDataSetv2(self,keyspace,maxTrainDataSet,minTrainDataSet,L_train,features_train,clientID,dataUUID,only,alar,procID):
+        # La busquerá se hará en dos partes:
+        #   1ª. Sacaremos todos los dataset de un cliente --> 
+        #                select datasetID,numRecords from monmale.DataSet WHERE clientID=X;
+        #   2ª. Iremos uno a uno sacando los registros de cada dataset -->
+        #               select alarm,col2,col3,col4,col5,col6,col7 FROM monmale.DataSet WHERE datasetID=xx-xx-xx order by recordN;
+        #
+        # CHANGE: 30.08.14 - Le añadimos dos parámetros mas a la llamada: "datasetUID" y "True/False" para poder hacer:
+        #                    1.- Si el "datasetUID" está vacio ignorará el otro y en este caso no filtrará por datasetUID.
+        #                    2.- Si el "datasetUID" no está vacio:
+        #                       2.1.- Está a True => Sacará sólo las muestras de este dataset
+        #                       2.2.- Está a False => Sacará todas las muestras de los dataset excepto las de este
+        # CHANGE: 30.08.14 - Le añadimos un parámetro mas boolean para:
+        #                    1.- Si es True sacará también las muestras alarmadas.
+        #                    2.- Si es False no sacará las muestras alarmadas.
+        # CHANGE: 06.09.14 - Cambiamos la primera query, le añadimos recordN=0 en el WHERE, ya que así nos evitamos traernos tantos 
+        #                    registros de la BD y por lo tanto el recorrerlos mas tarde.
+        # CHANGE: 10.09.14 - El cambio anterior era incompleto, lo solucionamos y quitamos el tema del minTrainDataSet y del maxTrainDataSet
+        #                    ya que este valor lo marca ahora cuantos dataset hay y el tamaño del dataset actual
+        #                    
+        include=True
+        if dataUUID == "":
+            query="select datasetID,numRecords from monmale.summarydata WHERE clientID="+str(clientID)+";"
+        else:
+            if only:
+                query="select datasetID,numRecords from monmale.summarydata WHERE clientID="+str(clientID)+" AND datasetID="+str(dataUUID)+";"
             else:
-                log.info(procID+' <loadTrainDataSet> Number of records recovered of DB: '+str(records))
-                dicData={}
-                cont=int(str(maxTrainDataSet))
-                for row in range(records):
-                    if (J[row][0] not in dicData.keys()) and cont>0:
-                        log.info(procID+" - "+str(J[row][0])+" --> "+str(J[row][1]))
-                        dicData[J[row][0]]=J[row][1]
-                        cont=cont-J[row][1]
-                log.info(procID+" <loadTrainDataSet> Number of samples to recover in DB:"+str(int(str(maxTrainDataSet))-cont))
-                cad=''
-                for i in features_train:
-                    if (cad == ''):
-                        cad=i
-                    else:
-                        cad=cad+','+i
-                log.info(procID+' <loadTrainDataSet> DataUUID '+str(dataUUID))
-                if include == False:
-                    if dataUUID in dicData.keys(): # Ya que como tenemos un máximo de líneas en el dataset puede que no se haya cargado
-                        del dicData[dataUUID]
-                    log.info(procID+" <loadTrainDataSet> DatasetUUD "+str(dataUUID)+" deleted because it is excluded.")
-                for dataset in dicData.keys():
-                    query= "SELECT recordN,alarm,"+cad+" FROM "+keyspace+".DataSet WHERE datasetID="+str(dataset)+" ORDER BY recordN;"
-                    log.info(procID+" - "+query)
-                    try:
-                        # No sacaremos las muestras alarmadas ya que estas presentan anomalías y queremos el set de entrenamiendo lo mas limpio posible,
-                        # para aplicar el algoritmo de clustering en el proceso MNR si cargaremos todos.
-                        # aunque sacamos las columnas datasetID,recordN,alarm en la query, a la hora de crear el array las quitaremos
-                        #
-                        R=self.session.execute(query)
-                        log.info(procID+' - Extraction train dataset queried executed step2')
-                    except:
-                        log.error(procID+' - DB query problem¡¡.')
-                        self.close()
-                        sys.exit(1)
-                    else:
-                        rec=len(R)
-                        log.info(procID+' - Number of records recovered of DB: '+str(rec))
-                        for row in range(rec):
-                            log.info(procID+" - Row:"+str(row))
-                            sublis=[]
-                            if R[row][1] == False or alar == True: # Si alar es True sacamos las muestras alarmadas
-                                for col in range(len(features_train)): # cuidado que tenemos que quitar las 2 primeras
-                                    log.info(procID+" - "+str(features_train[col])+" --> "+str(R[row][col+2]))
-                                    v, t = usefulLibrary.convertString(R[row][col+2])
-                                    sublis.append(v)
-                                L_train.append(sublis)
-                            else:
-                                log.info(procID+" - "+str(row)+" does not load, it is alarmed.")
+                query="select datasetID,numRecords from monmale.summarydata WHERE clientID="+str(clientID)+";"
+                include=False
+        log.info(procID+" - "+query)
+        try:
+            J=self.session.execute(query,timeout=100.0)
+            log.info(procID+' <loadTrainDataSet> Extraction train dataset queried executed step1.')
+        except:
+            log.error(procID+' <loadTrainDataSet> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else: 
+            records=len(J)
+            log.info(procID+' <loadTrainDataSet> Number of records recovered of DB: '+str(records))
+            dicData={}
+            for row in range(records):
+                if J[row][0] not in dicData.keys():
+                    log.info(procID+" - "+str(J[row][0])+" --> "+str(J[row][1]))
+                    dicData[J[row][0]]=J[row][1]
+            log.info(procID+" <loadTrainDataSet> Number of full DataSet to recover in DB:"+str(records))
+            cad=''
+            for i in features_train:
+                if (cad == ''):
+                    cad=i
+                else:
+                    cad=cad+','+i
+            log.info(procID+' <loadTrainDataSet> DataUUID '+str(dataUUID))
+            if include == False:
+                if dataUUID in dicData.keys(): # Ya que como tenemos un máximo de líneas en el dataset puede que no se haya cargado
+                    del dicData[dataUUID]
+                log.info(procID+" <loadTrainDataSet> DatasetUUD "+str(dataUUID)+" deleted because it is excluded.")
+            for dataset in dicData.keys():
+                query= "SELECT recordN,alarm,"+cad+" FROM "+keyspace+".DataSet WHERE datasetID="+str(dataset)+" ORDER BY recordN;"
+                log.info(procID+" - "+query)
+                try:
+                    # No sacaremos las muestras alarmadas ya que estas presentan anomalías y queremos el set de entrenamiendo lo mas limpio posible,
+                    # para aplicar el algoritmo de clustering en el proceso MNR si cargaremos todos.
+                    # aunque sacamos las columnas datasetID,recordN,alarm en la query, a la hora de crear el array las quitaremos
+                    #
+                    R=self.session.execute(query)
+                    log.info(procID+' - Extraction train dataset queried executed step2')
+                except:
+                    log.error(procID+' - DB query problem¡¡.')
+                    self.close()
+                    sys.exit(1)
+                else:
+                    rec=len(R)
+                    log.info(procID+' - Number of records recovered of DB: '+str(rec))
+                    for row in range(rec):
+                        log.info(procID+" - Row:"+str(row))
+                        sublis=[]
+                        if R[row][1] == False or alar == True: # Si alar es True sacamos las muestras alarmadas
+                            for col in range(len(features_train)): # cuidado que tenemos que quitar las 2 primeras
+                                log.info(procID+" - "+str(features_train[col])+" --> "+str(R[row][col+2]))
+                                v, t = usefulLibrary.convertString(R[row][col+2])
+                                sublis.append(v)
+                            L_train.append(sublis)
+                        else:
+                            log.info(procID+" - "+str(row)+" does not load, it is alarmed.")
                 log.info(procID+' - Number of samples recovered: '+str(len(L_train)))
 
     def insertNewDataSet(self,keyspace,dicHeader,L_union,dicL0,dicAlarmsRegr,procID):
@@ -386,10 +469,16 @@ class connectionCassandra:
             inserData,valuesList = usefulLibrary.createRecordDataset(procID,keyspace,dicL0,dicHeader,a,len(L_union),cont,row)
             self.executeDBinsert(inserData,valuesList)
             cont=cont+1
-   
-    def insertResult(self,keyspace,dicHeader,timeProcessing,score,procID): 
+
+    def insertSummaryData(self,keyspace,clientID,datasetID,numrecords,newFile,procID): 
+        log.info(procID+" <insertSummaryData> Creating sentence ....")
+        inserData,valuesList = usefulLibrary.createRecordSummary(keyspace,clientID,datasetID,numrecords,newFile,procID)
+        log.info(procID+" <insertSummaryData> Inserting ....")
+        self.executeDBinsert(inserData,valuesList)
+
+    def insertResult(self,keyspace,dicHeader,timeProcessing,score,analysis,procID): 
         log.info(procID+" <insertResult> Creating sentence ....")
-        inserData,valuesList = usefulLibrary.createRecordResult(keyspace,dicHeader,timeProcessing,score,procID)
+        inserData,valuesList = usefulLibrary.createRecordResult(keyspace,dicHeader,timeProcessing,score,analysis,procID)
         log.info(procID+" <insertResult> Inserting ....")
         self.executeDBinsert(inserData,valuesList)
     
@@ -600,8 +689,8 @@ class connectionCassandra:
                 log.debug(procID+' <searchAlarmsByDataSet> There is not alarm.')
             return R
     
-    def insertAnalysisInResult(self,keyspace,clientID,datasetID,procID):
-        inserData,valuesList = usefulLibrary.updateRecordResult(keyspace,clientID,datasetID,procID)
+    def insertAnalysisInResult(self,keyspace,clientID,datasetID,analysis,procID):
+        inserData,valuesList = usefulLibrary.updateRecordResult(keyspace,clientID,datasetID,analysis,procID)
         self.executeDBinsert(inserData,valuesList)
     
     def updateDatasetWithAlarms(self,keyspace,clientID,datasetID,listAlarmsDB,procID):
@@ -616,7 +705,104 @@ class connectionCassandra:
             row=dicAlarmsLRePRec[key]['row']
             inserData,valuesList = usefulLibrary.updateRecordAlarm(keyspace,clientID,datasetID,row,col,procID)
             self.executeDBinsert(inserData,valuesList)
-            
+
+ # ------ NEW: 09.09.14 
+ 
+    def searchMLProceduresForClient(self,keyspace,clientID,procID):
+        trackid = self.extractClientTrack(keyspace,clientID,procID)
+        algorithmList = self.extractTrackAlgorithm(keyspace,trackid,procID)
+        procedureList = self.extractAlgorithms(keyspace,algorithmList,procID)
+        return procedureList
+
+    def searchMLFinalpathForClient(self,keyspace,clientID,procID):
+        trackid = self.extractClientTrack(keyspace,clientID,procID)
+        finalPath = self.extractTrackFinalpath(keyspace,trackid,procID)
+        return finalPath
+              
+    def extractClientTrack(self,keyspace,clientID,procID):
+        query= "SELECT trackid FROM "+keyspace+".Client WHERE clientID="+str(clientID)+";"
+        log.info(procID+' <extractClientTrack> '+str(query))
+        try:
+            R=self.session.execute(query)
+        except:
+            log.error(procID+' <extractClientTrack> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            log.debug(procID+' <extractClientTrack> Extract trackid search queried executed.')
+            log.debug(procID+' <extractClientTrack> Number of records found in DB= '+str(len(R))) # Como mucho será 1
+            log.debug(R[0][0]) # trackid
+            return R[0][0]
+
+    def extractAlgorithms(self,keyspace,algorithmlist,procID):
+        cad=''
+        for i in algorithmlist:
+            if (cad == ''):
+                cad=i
+            else:
+                cad=cad+','+i
+        query= "SELECT procedure FROM "+keyspace+".algorithm WHERE id in ("+str(cad)+");"
+        log.info(procID+' <extractAlgorithms> '+str(query))
+        try:
+            R=self.session.execute(query)
+        except:
+            log.error(procID+' <extractAlgorithms> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            log.debug(procID+' <extractAlgorithms> Extract procedure list search queried executed.')
+            log.debug(procID+' <extractAlgorithms> Number of records found in DB= '+str(len(R))) # Como mucho será 1
+            l=[]
+            for index in range(len(R)):
+                log.debug(procID+' <extractAlgorithms> Record '+str(index))
+                log.debug(procID+' <extractAlgorithms> ---------------')
+                log.debug(R[index][0]) # procedure
+                l.append(R[index][0])
+                log.debug(procID+' <extractAlgorithms> ---------------')
+            else:
+                log.debug(procID+' <extractAlgorithms> There is not in for algorithm.')
+            return l
+
+    def extractTrackAlgorithm(self,keyspace,trackid,procID):
+        query= "SELECT algorithmlist FROM "+keyspace+".Track WHERE trackid="+str(trackid)+";"
+        log.info(procID+' <extractTrackAlgorithm> '+str(query))
+        try:
+            R=self.session.execute(query)
+        except:
+            log.error(procID+' <extractTrackAlgorithm> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            l=[]
+            log.debug(procID+' <extractTrackAlgorithm> Extract algorithm list search queried executed.')
+            log.debug(procID+' <extractTrackAlgorithm> Number of records found in DB= '+str(len(R))) # Como mucho será 1
+            for index in range(len(R)):
+                log.debug(procID+' <extractTrackAlgorithm> Record '+str(index))
+                log.debug(procID+' <extractTrackAlgorithm> ---------------')
+                log.debug(R[index][0]) # algorithmlist
+                l.append(R[index][0])
+                log.debug(procID+' <extractTrackAlgorithm> ---------------')
+            else:
+                log.debug(procID+' <extractTrackAlgorithm> There is not trackid.')
+            return l
+
+    def extractTrackFinalpath(self,keyspace,trackid,procID):
+        query= "SELECT finalpath FROM "+keyspace+".Track WHERE trackid="+str(trackid)+";"
+        log.info(procID+' <extractTrackAlgorithm> '+str(query))
+        try:
+            R=self.session.execute(query)
+        except:
+            log.error(procID+' <extractTrackAlgorithm> DB query problem¡¡.')
+            self.close()
+            sys.exit(1)
+        else:
+            log.debug(procID+' <extractTrackAlgorithm> Extract finalpath list search queried executed.')
+            log.debug(procID+' <extractTrackAlgorithm> Number of records found in DB= '+str(len(R))) # Como mucho será 1
+            log.debug(R[0][0]) # finalpath
+            return R[0][0]
+
+ # ------ NEW: 09.09.14     
+    
     def extractDatasetInformation(self,keyspace,clientID,datasetID,dicLspecial,procID):
         col="col"
         for index in range(len(dicLspecial['L0'])):

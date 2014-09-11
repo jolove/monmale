@@ -134,11 +134,12 @@ def main():
                 # Continuamos tratando el fichero
                 # Hemos quitado la comprobación de buscar al cliente en la BD, ya que esta comprobación se hace en la fase anterior
                 # y hacerlo nuevamente es repetir.
-                lisAlarm=[]
-                client.searchRecentAlarm(keyspace,dicHeader['clientID'],dicDBvariables['recentAlarm'],lisAlarm,procID)
-                if len(lisAlarm)==0:
+                # CHANGE: 11.09.14 -- Quitamos lo referente a búsqueda de alarma reciente
+                # lisAlarm=[]
+                # client.searchRecentAlarm(keyspace,dicHeader['clientID'],dicDBvariables['recentAlarm'],lisAlarm,procID)
+                # if len(lisAlarm)==0:
                     # No hay alarma reciente
-                    log.info(procID+" - There is not recent alarm.")
+                #    log.info(procID+" - There is not recent alarm.")
                 #
                 # Después de insertar el nuevo DataSet en la BD tendremos que generar el fichero JSON en el cual será introducida
                 # la lista del punto anterior con la posible alarma previa o en caso contrario la lista nula
@@ -163,19 +164,22 @@ def main():
                 for o in sorted(order):
                     features_train.append("col"+str(o))   # en la BD las columnas en la tabla de dataSet no tienen nombre, son "col1",....
                 log.info(procID+" - Features Train: "+str(features_train))
-                client.loadTrainDataSet(keyspace,dicDBvariables['maxTrainDataSet'],dicDBvariables['minTrainDataSet'],L_train,features_train,dicHeader['clientID'],"",False,False,procID)
+                client.loadTrainDataSetv2(keyspace,dicDBvariables['maxTrainDataSet'],dicDBvariables['minTrainDataSet'],L_train,features_train,dicHeader['clientID'],"",False,False,procID)                
+                # backup 11.09.04 --> client.loadTrainDataSet(keyspace,dicDBvariables['maxTrainDataSet'],dicDBvariables['minTrainDataSet'],L_train,features_train,dicHeader['clientID'],"",False,False,procID)
                 # En este punto ya tenemos:
                 #   - L2         --> array que usaremos como test y a predecir
                 #   - L_train    --> array que usaremos como train
                 # por lo que ya podemos aplicar los algoritmos de ML.
                 #
+                analysis=False
                 dicAlarmsRegr={}
                 score=0
                 log.info(procID+" <main> L_train is --> "+str((len(L_train)*100)/(len(L_train)+len(L2)))+"%")
                 if len(L_train) == 0: #or (len(L_train)*100)/(len(L_train)+len(L2)) < int(dicDBvariables['test_size']): # no hay suficientes dataset anteriores en la BD
                     log.info(procID+" - There are not enough datasets in DB, the regression execution will not be executed.")
                 else:
-                    machineLearningLibrary.applyRegression(dicWrongValues,L2,dicL["L2"],L_train,dicDBvariables['coefVaration'],dicAlarmsRegr,score,dicDBvariables['test_size'],procID)
+                    analysis=False
+                    machineLearningLibrary.applyRegression(dicWrongValues,L2,dicL["L2"],L_train,dicDBvariables['coefVaration'],dicAlarmsRegr,score,dicDBvariables['test_size'],analysis,procID)
                     # IMPORTANTE: el diccionario dicAlarmsRegr nos marca los registros con alarma sobre el array L2, por lo que antes de insertarlas
                     # en la BD debemos de encontrar las coordenadas correctas.
                     # De la llamada anterior obtenemos:
@@ -197,7 +201,9 @@ def main():
                 log.info(procID+" - Time processing: "+str(timeProcessing.seconds)+" s")
                 # CHANGE: 04.09.14 --> client.insertNewDataSet(keyspace,dicHeader,L_union,dicL["L0"],dicAlarmsRegr,procID) 
                 client.insertNewDataSetCheck(keyspace,dicHeader,L_union,dicL["L0"],dicAlarmsRegr,procID) 
-                client.insertResult(keyspace,dicHeader,timeProcessing.seconds,score,procID)
+                # NEW: 11.09.14
+                client.insertSummaryData(keyspace,dicHeader['clientID'],dicHeader['datasetID'],len(L_union),newFile,procID)
+                client.insertResult(keyspace,dicHeader,timeProcessing.seconds,score,analysis,procID)
                 if len(dicAlarmsRegr.keys()) >0:
                     # En este proceso sólo se puede dar un tipo de alarma que es la de valor incorrecto mediante REGRESIÓN
                     #  Tipo Alarma 1

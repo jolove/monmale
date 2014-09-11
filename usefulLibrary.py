@@ -23,12 +23,13 @@ def createUUID():
 def extensionDate():
     return datetime.now().strftime("%Y-%m-%d_%H%M%S")
 
-def updateRecordResult(keyspace,clientID,datasetID,procID):
+def updateRecordResult(keyspace,clientID,datasetID,analysis,procID):
     valuesList=[]
     valuesList.insert(0,datasetID)
     valuesList.insert(1,clientID)
     valuesList.insert(2,False)
-    insert="INSERT INTO "+keyspace+".Result (datasetID,clientID,pending) VALUES (%s,%s,%s)"
+    valuesList.insert(3,analysis)
+    insert="INSERT INTO "+keyspace+".Result (datasetID,clientID,pending,analysis) VALUES (%s,%s,%s,%s)"
     return insert,valuesList  
 
 def updateRecordAlarm(keyspace,clientID,datasetID,row,col,procID):
@@ -54,7 +55,19 @@ def updateRecordDataset(keyspace,clientID,datasetID,recordn,procID):
     log.info(procID+' <updateRecordDataset> values --> '+str(valuesList))
     return insert,valuesList        
 
-def createRecordResult(keyspace,dicHeader,timeProcessing,score,procID):
+def createRecordSummary(keyspace,clientID,datasetID,numrecords,newFile,procID):
+    valuesList=[]
+    dataset=uuid.UUID(str(datasetID))
+    valuesList.insert(0,dataset)
+    valuesList.insert(1,clientID)
+    valuesList.insert(2,numrecords)
+    valuesList.insert(3,str(newFile))
+    insert="INSERT INTO "+keyspace+".summarydata (datasetID,clientid,numRecords,file) VALUES (%s,%s,%s,%s)"
+    log.info(procID+' <createRecordSummary> insert --> '+insert)
+    log.info(procID+' <createRecordSummary> values --> '+str(valuesList))
+    return insert,valuesList
+    
+def createRecordResult(keyspace,dicHeader,timeProcessing,score,analysis,procID):
     date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     datasetID=uuid.UUID(str(dicHeader["datasetID"]))
     clientID=dicHeader["clientID"]
@@ -65,7 +78,8 @@ def createRecordResult(keyspace,dicHeader,timeProcessing,score,procID):
     valuesList.insert(3,timeProcessing)
     valuesList.insert(4,score)
     valuesList.insert(5,True) # NEW: 30.08.14
-    insert="INSERT INTO "+keyspace+".Result (datasetID,clientID,date,processingTime,regressionScore,pending) VALUES (%s,%s,%s,%s,%s,%s)"
+    valuesList.insert(6,analysis) # NEW: 06.09.14
+    insert="INSERT INTO "+keyspace+".Result (datasetID,clientID,date,processingTime,regressionScore,pending,analysis) VALUES (%s,%s,%s,%s,%s,%s,%s)"
     log.info(procID+' <createRecordResult> insert --> '+insert)
     log.info(procID+' <createRecordResult> values --> '+str(valuesList))
     return insert,valuesList
@@ -234,7 +248,7 @@ def convertString(stri):
 def applyClassification(dicClientsClassification,decodedDict):
     # dicClientsClassification --> diccionario de diccionarios con cada cliente y sus características principales para clasificar el data set
     # decodedDict --> diccionario con las características principales del fichero a clasificar
-    equal=True
+    equal=False
     clientsID=[]
     for i in dicClientsClassification.keys():
         # en cada interación estamos cogiendo a cada cliente
@@ -243,14 +257,19 @@ def applyClassification(dicClientsClassification,decodedDict):
             equal=False
             log.info("    - Features client don't same that file (features names).")
         else:
+            equal=True
             for j in dicClientsClassification[i].keys():
-                if dicClientsClassification[i][j] != decodedDict[j]:
+                if (dicClientsClassification[i][j] != decodedDict[j]) and (dicClientsClassification[i][j] == "float" and decodedDict[j] == 'int'):
+                # NEW --> 06.09.14 --> añadimos la segunda condición en la clausula IF anterior ya que aunque en la BD esté como float, si en el
+                #                      fichero está cómo int no tendremos problemas
                     equal=False
                     log.info("      <applyClassification> Features client don't same that file (features type). KEY="+str(j))
                     log.debug("      <applyClassification> In DB   --> "+str(dicClientsClassification[i][j]))
                     log.debug("      <applyClassification> In File --> "+str(decodedDict[j]))
         if equal:
+            log.debug("    <applyClassification> equal=True, inserting ..."+str(i))
             clientsID.append(i)
+            equal=False
     if len(clientsID)>1:
         log.info("Error, there are several clients with the same features for new File")
         return False,""

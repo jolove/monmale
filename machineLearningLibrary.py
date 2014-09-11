@@ -21,7 +21,7 @@ from datetime import datetime
 log = logging.getLogger()
 log.setLevel('INFO')
 
-def applyRegression(dicWrongValues,L2,dicL,L_train,coefVaration,dicAlarmsRegr,score,testSize,procID):
+def applyRegression(dicWrongValues,L2,dicL,L_train,coefVaration,dicAlarmsRegr,score,testSize,analysis,procID):
     # Esta función tiene como objetivo:
     #   1º. Sustituir los "wrong" values de la lista L2 por valores predecidos según el resto de características.
     #       NOTA: cuidado cuando existan mas de una característica "wrong" para la misma muestra.
@@ -48,6 +48,7 @@ def applyRegression(dicWrongValues,L2,dicL,L_train,coefVaration,dicAlarmsRegr,sc
         percentSizeTrain=(len(L_full)*100)/(len(L_full)+len(dicWrongValues.keys()))
         if  int(percentSizeTrain) >= int(testSize):
             log.info(procID+" <applyRegression> STEP 1: Train array is upper to test_size "+str(testSize)+", the Lineal Regression will be executed.")
+            analysis=True
             values_X, values_Y = [], []
             columns=[]
             for wrong in sorted(dicWrongValues.keys()):
@@ -95,6 +96,7 @@ def applyRegression(dicWrongValues,L2,dicL,L_train,coefVaration,dicAlarmsRegr,sc
     percentSizeTrain=(len(L_train)*100)/(len(L_train)+len(L2))
     if  int(percentSizeTrain) >= int(testSize):
         log.info(procID+" <applyRegression> STEP 2: Train array is upper to test_size "+str(testSize)+", the Lineal Regression will be executed.")
+        analysis=True
         values_X, values_Y = [], []
         # Nos toca recorre todo el array del fichero prediciendo uno a uno cada valor, por columna
         for colum in range(len(feature_names)):

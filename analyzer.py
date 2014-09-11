@@ -136,9 +136,11 @@ def main():
                 L_train=[]         # En esta variable cargaremos los valores de los dataSet de entrenamiento
                 features_predict=features
                 features_train=features
-                client.loadTrainDataSet(keyspace,dicDBvariables['maxTrainDataSet'],0,L_predict,features_predict,clientID,datasetID,True,True,procID)                
+                #backup 11.09.14 --> client.loadTrainDataSet(keyspace,dicDBvariables['maxTrainDataSet'],0,L_predict,features_predict,clientID,datasetID,True,True,procID)                
+                client.loadTrainDataSetv2(keyspace,dicDBvariables['maxTrainDataSet'],0,L_predict,features_predict,clientID,datasetID,True,True,procID)                
                 log.info(procID+" <main> Features Train: "+str(features_train))
-                client.loadTrainDataSet(keyspace,dicDBvariables['maxTrainDataSet'],dicDBvariables['minTrainDataSet'],L_train,features_train,clientID,datasetID,False,True,procID)
+                #backup 11.09.14 --> client.loadTrainDataSet(keyspace,dicDBvariables['maxTrainDataSet'],dicDBvariables['minTrainDataSet'],L_train,features_train,clientID,datasetID,False,True,procID)
+                client.loadTrainDataSetv2(keyspace,dicDBvariables['maxTrainDataSet'],dicDBvariables['minTrainDataSet'],L_train,features_train,clientID,datasetID,False,True,procID)
                 # En este punto ya tenemos:
                 #   - L_predict  --> array que usaremos como a predecir
                 #   - L_train    --> array que usaremos como train y test
@@ -163,6 +165,7 @@ def main():
                 dicAlarmsClusT={}
                 dicAlarmsClusP={}
                 score=0
+                analysis=False
                 # El array de entrenamiento puede ser demasiado pequeño comparado con el que deseamos predecir, en tal caso no podremos aplicar
                 # el algoritmo de clustering, como norma general, el array de entrenamiento debe suponer el 75% del total
                 log.info(procID+" <main> L_train is --> "+str((len(L_train)*100)/(len(L_train)+len(L_predict)))+"%")
@@ -172,6 +175,7 @@ def main():
                     machineLearningLibrary.applyClusteringTotal(L_predict,features,L_train,dicDBvariables,dicAlarmsClusT,score,procID)
                     machineLearningLibrary.applyClusteringPartial(L_predict,features,L_train,dicDBvariables,dicAlarmsClusP,score,procID)
                     # dicAlarmsClusP es un diccionario por columna, es decir contiene X subdiccionarios del tipo dicAlarmsClusT (X=num columnas)                
+                    analysis=True
                     if len(dicAlarmsClusT.keys()) > 0 or len(dicAlarmsClusP.keys()) > 0: # Hay alarmas
                         log.info(procID+" <main> There are new alarms.")
                         dicAlarmsClusPRec={} # diccionario con las alarmas rectificadas por el conocimiento externo
@@ -197,9 +201,10 @@ def main():
                 # 
                 # Generamos los ficheros
                 lisInformationDB = client.extractDatasetInformation(keyspace,clientID,datasetID,dicLspecial,procID) 
-                usefulLibraryFiles.createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,procID)
+                # backup --> usefulLibraryFiles.createJSONAlarmsANDdataset(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,analysis,procID)
+                usefulLibraryFiles.createJSONAlarmsANDdatasetv2(datasetID,clientID,listAlarmsDB,pathF,lisInformationDB,analysis,procID)
                 log.info(procID+" <main> File Alarms&Dataset JSON created.")
-                client.insertAnalysisInResult(keyspace,clientID,datasetID,procID)
+                client.insertAnalysisInResult(keyspace,clientID,datasetID,analysis,procID)
                 log.info(procID+" <main> Dataset updated as analyzed.")
         else:
             # No hay dataSet reciente reciente
